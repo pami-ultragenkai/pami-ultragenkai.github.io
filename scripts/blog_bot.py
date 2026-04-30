@@ -186,7 +186,8 @@ class ArkitecEngine:
         if self.create_markdown(title, content, filename):
             # 6. デプロイと告知
             if self.git_deploy():
-                self.announce_on_x(title, blog_url)
+                logging.info("デバック：X投稿停止中")
+                #self.announce_on_x(title, blog_url)
                 logging.info(f"--- [MISSION COMPLETE] 記事 '{title}' の全工程が完了しやした！ ---")
             else:
                 logging.error("【ミッション中断】デプロイに失敗しやした。")
