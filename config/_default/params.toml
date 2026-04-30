@@ -1,0 +1,57 @@
+# -- Theme Options --
+colorScheme = "ocean"           # 寂しさを消す、深みのある紺色スキーム
+defaultAppearance = "dark"      # エンジニアの鉄則、ダークモードを標準に
+autoSwitchAppearance = true
+
+enableA11y = false
+enableSearch = true
+enableCodeCopy = true           # コードコピーはエンジニアブログには必須でやんす
+enableStructuredBreadcrumbs = true
+
+disableImageOptimization = false
+disableImageOptimizationMD = false
+disableTextInHeader = false
+
+[header]
+  layout = "fixed-fill"         # ヘッダーを塗りつぶして、サイトの輪郭をはっきりさせやす
+
+[footer]
+  showMenu = true
+  showCopyright = true
+  showThemeAttribution = false  # 自分のブランドを出すためにテーマ表記はオフでやんす
+  showAppearanceSwitcher = true
+  showScrollToTop = true
+
+[homepage]
+  layout = "card"               # 旦那こだわりのカードレイアウト
+  showRecent = true
+  showRecentItems = 6           # 2列や3列で綺麗に並ぶ偶数設定
+  showMoreLink = true
+  showMoreLinkDest = "/posts/"
+  cardView = true               # これでしっかりカード型に見えやす
+  layoutBackgroundBlur = true
+
+[article]
+  showDate = true
+  showAuthor = true
+  showHero = true               # 記事に画像を設定した時に映えるようにしやす
+  heroStyle = "thumbAndBackground" # お洒落な背景効果
+  showReadingTime = true
+  showTableOfContents = true    # 長い記事でも読みやすくしやす
+  showTaxonomies = true
+  showCategories = true
+  showTags = true
+
+[list]
+  showHero = true
+  showSummary = true            # 記事の冒頭が見えることで「密度」を出しやす
+  showCards = true              # リスト画面でもカード形式を維持
+  cardView = true
+  groupByYear = true
+
+[taxonomy]
+  showTermCount = true
+  cardView = true
+
+[term]
+  cardView = true
