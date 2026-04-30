@@ -148,6 +148,7 @@ class ArkitecEngine:
             )
             
             if bot.post_text(message):
+                logging.info(message)
                 logging.info("【X告知: SUCCESS】告知ポストが完了しやした。")
                 return True
             else:
