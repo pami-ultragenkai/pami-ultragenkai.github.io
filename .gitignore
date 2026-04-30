@@ -1,12 +1,14 @@
+# --- ARKITEC Security (最重要！) ---
+# 秘密情報を確実に遮断しやす
+scripts/.env
+scripts/prompts/pamichiki_identity.yaml
+# プロンプトフォルダ全体を隠すならこっち
+scripts/prompts/
+
 # --- ARKITEC Logs ---
-# scripts/logs フォルダの中身をすべて無視しやす
 scripts/logs/
 
-# もし個別のログファイルだけ指定したい場合はこう書きやす
-# scripts/logs/*.log
-
 # --- Hugo Defaults ---
-# ビルド済みの成果物はActionsで作るので、ローカルのものは不要でやんす
 public/
 resources/_gen/
 .hugo_build.lock
@@ -18,7 +20,9 @@ Thumbs.db
 .idea/
 
 # --- Virtual Environment ---
+# フォルダ名が .venv ならこれでOKでやんす
+.venv/
 scripts/.venv/
 
 # コメント管理するファイルを連携対象外
-layouts/partials/
+layouts/partials/comments.html
