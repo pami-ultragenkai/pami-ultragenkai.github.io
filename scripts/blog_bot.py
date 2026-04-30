@@ -144,7 +144,7 @@ class ArkitecEngine:
                 f"ぱみブログ更新🐹\n"
                 f"今回は「{blog_title}」について投稿したのでみてね🤓🤞\n"
                 f"URL：{blog_url}\n"
-                f"#ARKITEC #エンジニア2年目 #Python自動化"
+                f"#ブログ"
             )
             
             if bot.post_text(message):
@@ -179,7 +179,7 @@ class ArkitecEngine:
         
         # 4. URLの組み立て[cite: 1]
         base_url = "https://pami-ultragenkai.github.io"
-        blog_url = f"{base_url}/posts/{slug}.html"
+        blog_url = f"{base_url}/posts/{slug}"
 
         # 5. MD化（生成したfilenameを渡す）[cite: 1]
         title = f"Report: {topic}"

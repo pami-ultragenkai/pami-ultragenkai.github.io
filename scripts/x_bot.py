@@ -48,11 +48,11 @@ class PamichikiBot:
         """外部から受け取ったテキストを投稿しやす（汎用メソッド）[cite: 4]"""
         try:
             media_ids = None
-            #if media_path and os.path.exists(media_path):
-               # media = self.tw_api_v1.media_upload(media_path)
-               # media_ids = [media.media_id]
-            logging.info(text)
-            #self.tw_client.create_tweet(text=text, media_ids=media_ids)
+            if media_path and os.path.exists(media_path):
+                media = self.tw_api_v1.media_upload(media_path)
+                media_ids = [media.media_id]
+            
+            self.tw_client.create_tweet(text=text, media_ids=media_ids)
             logging.info(f"【投稿成功】内容: {text}...")
             return True
         except Exception as e:
