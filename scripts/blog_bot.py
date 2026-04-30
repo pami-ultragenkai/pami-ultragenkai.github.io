@@ -146,11 +146,23 @@ class ArkitecEngine:
         try:
             bot = PamichikiBot()
             char_name = self.config['character']['name']
-            # ブログ告知用のメッセージ構成[cite: 2]
+            
+            # 1. 記事を生成して、その保存先パスを自動で受け取りやす
+            new_file_path = self.generate_blog_post(blog_title, content)
+
+            # 2. そのパスからURLを自動生成しやす
+            import os
+            base_url = "https://pami-ultragenkai.github.io"
+            # パスからファイル名（記事ID）を引っこ抜いて .html に変換しやす
+            file_name = os.path.basename(new_file_path).replace('.md', '.html')
+            blog_url = f"{base_url}/posts/{file_name}"
+
+            # 3. Xへ投稿！
+            bot = PamichikiBot()
             message = (
-                f"【{char_name}の活動報告】\n"
-                f"新しい記事を書いた件、見てほしいんかな…？Hamster🐹\n\n"
-                f"「{blog_title}」\n"
+                f"ぱみブログ更新🐹\n"
+                f"今回は「{blog_title}」について投稿したのでみてね🤓🤞\n"
+                f"URL：{blog_url}\n"
                 f"#ARKITEC #エンジニア2年目 #Python自動化"
             )
             
