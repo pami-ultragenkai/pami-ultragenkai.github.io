@@ -5,6 +5,7 @@ import logging
 import subprocess
 import time
 import re
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -14,6 +15,7 @@ BASE_DIR = SCRIPT_DIR.parent
 POSTS_DIR = BASE_DIR / "content" / "posts"
 LOGS_DIR = SCRIPT_DIR / "logs"
 CONFIG_PATH = SCRIPT_DIR / "prompts" / "pamichiki_identity.yaml"
+HISTORY_PATH = SCRIPT_DIR / "prompts" / "history.json" # 履歴ファイルの保存先
 
 # フォルダ生成
 POSTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -46,19 +48,50 @@ class ArkitecEngine:
             logging.error(f"【設定読込: FAILED】{e}")
             raise
 
-    def build_instruction(self, topic):
-        """人格設定に基づいた執筆指示（プロンプト）を構成しやす"""
+    def load_history(self):
+        """履歴ファイルを読み込みやす"""
+        if not HISTORY_PATH.exists():
+            return []
+        try:
+            with open(HISTORY_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return []
+
+    def save_history(self, title, topic, level):
+        """今回の成果を履歴に刻みやす"""
+        history = self.load_history()
+        history.append({
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "title": title,
+            "topic": topic,
+            "level": level
+        })
+        with open(HISTORY_PATH, 'w', encoding='utf-8') as f:
+            json.dump(history, f, ensure_ascii=False, indent=4)
+        logging.info(f"【履歴更新: SUCCESS】{title} (Lv: {level})")
+
+    def build_instruction(self, topic, history, level):
+        """学習履歴とレベルを加味した最強の指示書を作りやす"""
         char = self.config['character']
         profile = "、".join(char['profile'])
+        
+        # 過去のトピックを抽出
+        past_titles = ", ".join([h['title'] for h in history]) if history else "なし"
+        
         instruction = (
             f"あなたは以下の人格を持つキャラクターとしてブログを書いてください。\n"
             f"名前: {char['name']}\n"
             f"プロフィール: {profile}\n"
             f"口調: {char['style']['tone']}\n\n"
+            f"【現在の学習レベル】\n"
+            f"難易度: {level}\n"
+            f"過去に執筆したタイトル: {past_titles}\n\n"
             f"【執筆ルール】\n"
             f"- テーマ: {topic}\n"
-            f"- Markdown形式で出力してください。\n"
-            f"- エンジニアとしての技術的視点と、{char['name']}らしい一生懸命さを出してください。"
+            f"- レベルに合わせて内容の専門性を調整してください。\n"
+            f"- 過去の記事と内容が重複しないよう、新しい視点や一歩踏み込んだ技術解説を含めてください。\n"
+            f"- Markdown形式で出力してください。"
         )
         return instruction
 
@@ -94,8 +127,6 @@ class ArkitecEngine:
         """生成された内容をHugo用のMDファイルとして保存しやす"""
         safe_now = datetime.now()
         timestamp = safe_now.strftime("%Y-%m-%dT%H:%M:%S+09:00")
-        
-        # 外で決めた filename を使用してパスを作成
         filepath = POSTS_DIR / filename
 
         front_matter = (
@@ -134,66 +165,61 @@ class ArkitecEngine:
         """x_botの汎用関数を使い、ブログ公開を告知しやす"""
         logging.info("=== [STATE: X_ANNOUNCE] X告知フェーズ ===")
         if not PamichikiBot:
-            logging.error("【告知中断】PamichikiBot クラスが利用不可でやんす。")
             return False
             
         try:
             bot = PamichikiBot()
-            # 旦那指定の固定文言スタイル
             message = (
                 f"ぱみブログ更新🐹\n"
                 f"今回は「{blog_title}」について投稿したのでみてね🤓🤞\n"
                 f"URL：{blog_url}\n"
                 f"#ブログ"
             )
-            
-            if bot.post_text(message):
-                logging.info("【X告知: SUCCESS】告知ポストが完了しやした。")
-                return True
-            else:
-                logging.error("【X告知: FAILED】ポストに失敗しやした。")
-                return False
+            return bot.post_text(message)
         except Exception as e:
-            logging.error(f"【X告知: FATAL】内部エラー: {e}")
+            logging.error(f"【X告知: FATAL】{e}")
             return False
 
-    def run(self, topic):
-        """全プロセスの司令塔でやんす"""
-        logging.info(f"--- [MISSION START] テーマ: {topic} ---")
+    def run(self, topic, level="初級"):
+        """ミッション遂行！"""
+        logging.info(f"--- [MISSION START] テーマ: {topic} (Lv: {level}) ---")
         
-        # 1. 執筆指示作成
-        instruction = self.build_instruction(topic)
+        # 1. 履歴を読み込む[cite: 1]
+        history = self.load_history()
         
-        # 2. 本文生成
+        # 2. 履歴とレベルを踏まえた指示作成
+        instruction = self.build_instruction(topic, history, level)
+        
+        # 3. 本文生成
         content = self.run_openclaw_agent(instruction)
         if not content:
-            logging.error("【ミッション失敗】本文生成フェーズで脱落しやした。")
             return
 
-        # 3. ファイル名（URLスラッグ）の生成[cite: 1]
-        # 日本語URLを避け、日付と一意のIDで構成しやす
+        # 4. ファイル名（URLスラッグ）の生成
         today_str = datetime.now().strftime('%Y-%m-%d')
         unique_id = str(uuid.uuid4())[:8]
         slug = f"{today_str}-{unique_id}"
         filename = f"{slug}.md"
         
-        # 4. URLの組み立て[cite: 1]
+        # 5. URLの組み立て（.htmlを付与）
         base_url = "https://pami-ultragenkai.github.io"
-        blog_url = f"{base_url}/posts/{slug}"
+        blog_url = f"{base_url}/posts/{slug}.html"
 
-        # 5. MD化（生成したfilenameを渡す）[cite: 1]
+        # 6. MD化
         title = f"Report: {topic}"
+        
         if self.create_markdown(title, content, filename):
-            # 6. デプロイと告知
+            # 7. デプロイ
             if self.git_deploy():
+                # 8. 成功したら履歴に保存！[cite: 1]
+                self.save_history(title, topic, level)
+                
+                # 9. X告知（デバッグ中はコメントアウト推奨）
                 logging.info("デバック：X投稿停止中")
-                #self.announce_on_x(title, blog_url)
-                logging.info(f"--- [MISSION COMPLETE] 記事 '{title}' の全工程が完了しやした！ ---")
-            else:
-                logging.error("【ミッション中断】デプロイに失敗しやした。")
-        else:
-            logging.error("【ミッション中断】ファイル生成に失敗しやした。")
+                # self.announce_on_x(title, blog_url)
+                logging.info(f"--- [MISSION COMPLETE] 記事完了！ ---")
 
 if __name__ == "__main__":
     engine = ArkitecEngine()
-    engine.run("エンジニア2年目が挑むPython自動化の壁")
+    # 旦那、ここを "中級" や "上級" に変えてみてくだせえ！
+    engine.run("エンジニア2年目が挑むPython自動化の壁", level="初級")
