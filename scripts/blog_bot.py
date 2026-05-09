@@ -148,7 +148,6 @@ class ArkitecEngine:
             f"それでは、本文のみをMarkdown形式で出力してください。"
             f"一生懸命さを出す件！"
         )
-        logging.info(f"【記事内容：】{instruction}")
         return instruction
 
     def run_openclaw_agent(self, instruction):
