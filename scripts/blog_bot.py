@@ -163,10 +163,12 @@ class ArkitecEngine:
             cmd = f'openclaw agent --agent main -m "{instruction}"'
             result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', shell=True)
             
+
             if result.returncode != 0:
                 logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
             
+            logging.info(f"【AI結果】： {result}")
             return result.stdout.strip()
         except Exception as e:
             logging.error(f"【システムエラー】{e}")
@@ -211,6 +213,7 @@ class ArkitecEngine:
 
         # 2. 本文生成
         content = self.run_openclaw_agent(self.build_instruction(theme, level, history))
+        logging.info(self.build_instruction(theme, level, history))
         logging.info(f"【本文】： {content}")
         if not content: return
 
