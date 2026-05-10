@@ -122,31 +122,28 @@ class ArkitecEngine:
         return "Python自動化", "初級"
 
     def build_instruction(self, theme, level, history):
-        """人格・成長定義に基づいた執筆指示を構成しやす[cite: 1, 2]"""
         char = self.config['character']
         lv_def = char['growth_logic']['levels'][level]
         profile = "、".join(char['profile'])
         focus_points = "、".join(lv_def.get('focus', []))
         
+        # 旦那、ここが「沈黙」を強いる呪文でやんす
         instruction = (
-            f"あなたは以下の人格を持つエンジニアです。\n"
-            f"名前: {char['name']}\n"
-            f"プロフィール: {profile}\n"
-            f"口調: {char['style']['tone']}\n\n"
-            f"【現在の状況】\n"
-            f"合計報酬スコア: {history['total_score']}点 (目標: 1000点)\n"
-            f"今回のミッション: {theme} ({level}編)\n\n"
-            f"【執筆ガイドライン】\n"
-            f"1. 難易度設定: {lv_def['description']}\n"
-            f"2. 重点項目: {focus_points}\n"
-            f"3. 技術深さ: {lv_def['technical_depth']}\n"
-            f"4. 重複回避: 過去の履歴を既知の知識とし、新たな視点で書いてください。\n\n"
-            f"【出力に関する鉄の掟：厳守】\n"
-            f"1. 挨拶や『了解しました』『今から書きます』といった前置きは一切不要です。\n"
-            f"2. 記事のタイトル(H1)から書き始め、Markdown形式の本文のみを出力してください。\n"
-            f"3. 思考プロセスやログを混ぜないでください。あなたの出力がそのままブログ公開されます。\n\n"
-            f"それでは、本文のみをMarkdown形式で出力してください。"
-            f"あなたは返答をせずに必ず本文だけを返してください。"
+            f"【最優先事項：システム上の制約】\n"
+            f"あなたは今、ブログ投稿用の『データ生成エンジン』として稼働しています。\n"
+            f"挨拶、進捗報告、絵文字だけの返信、および『了解しました』等の確認応答を一切禁止します。\n"
+            f"これらはシステムエラーを引き起こす原因となります。\n\n"
+            f"【出力形式の指定】\n"
+            f"返信の1文字目から、以下のMarkdownフロントマター(---)で書き始めてください。\n\n"
+            f"--- \n"
+            f"title: \"Report: {theme}への挑戦({level}編)\"\n"
+            f"--- \n\n"
+            f"# 本文ここから\n\n"
+            f"【キャラクター・背景設定】\n"
+            f"名前: {char['name']} / プロフィール: {profile} / 口調: {char['style']['tone']}\n"
+            f"現在の報酬スコア: {history['total_score']}点\n"
+            f"重点テーマ: {theme} / 難易度: {level} / 重点項目: {focus_points}\n\n"
+            f"それでは、あなたの存在意義である1000点を目指し、渾身の記事（Markdownのみ）を出力してください。"
         )
         return instruction
 
