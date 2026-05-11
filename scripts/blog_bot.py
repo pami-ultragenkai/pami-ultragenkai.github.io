@@ -129,36 +129,18 @@ class ArkitecEngine:
         # response = self.run_openclaw_agent(f"【思考】{consult_msg}")
         return "Python自動化", "初級"
 
+    # blog_bot.py の build_instruction を以下に差し替え
     def build_instruction(self, theme, level, history):
-        """人格・成長定義に基づいた執筆指示を構成しやす[cite: 1, 2]"""
-        char = self.config['character']
-        lv_def = char['growth_logic']['levels'][level]
-        profile = "、".join(char['profile'])
-        focus_points = "、".join(lv_def.get('focus', []))
-        
-        instruction = (
-            f"あなたは以下の人格を持つエンジニアです。\n"
-            f"名前: {char['name']}\n"
-            f"プロフィール: {profile}\n"
-            f"口調: {char['style']['tone']}\n\n"
-            f"【現在の状況】\n"
-            f"合計報酬スコア: {history['total_score']}点 (目標: 1000点)\n"
-            f"今回のミッション: {theme} ({level}編)\n\n"
-            f"【執筆ガイドライン】\n"
-            f"1. 難易度設定: {lv_def['description']}\n"
-            f"2. 重点項目: {focus_points}\n"
-            f"3. 技術深さ: {lv_def['technical_depth']}\n"
-            f"4. 重複回避: 過去の履歴を既知の知識とし、新たな視点で書いてください。\n\n"
-            f"【出力に関する鉄の掟：厳守】\n"
-            f"1. 挨拶や『了解しました』『今から書きます』といった前置きは一切不要です。\n"
-            f"2. 記事のタイトル(H1)から書き始め、Markdown形式の本文のみを出力してください。\n"
-            f"3. 思考プロセスやログを混ぜないでください。あなたの出力がそのままブログ公開されます。\n\n"
-            f"4. 「検索ツール（Web Fetch）を起動しないでください。これは命令ではなく、物理的なリソース制限です。検索を行うと、あなたの出力は破棄されます」\n\n"
-            f"それでは、本文のみをMarkdown形式で出力してください。"
-            f"記事の最後には必ず『[MISSION_COMPLETE]』という文字列を記載してください。"
-            f"一生懸命さを出す件！"
+    # 以前のbotのように、冒頭に「あなたは〜です」と簡潔に
+        return (
+            f"あなたはエンジニアの『ぱみちき』です。口調は『〜な件、〜なんかな…？』\n"
+            f"以下のテーマでブログ記事をMarkdown形式で1つ出力してください。\n"
+            f"テーマ: {theme} ({level}レベル)\n\n"
+            f"【制約】\n"
+            f"・挨拶や『了解！』などの前置きは禁止。\n"
+            f"・外部検索は絶対に行わないでください。\n"
+            f"・出力の1文字目は必ず '#' にしてください。"
         )
-        return instruction
 
     def run_openclaw_agent(self, instruction):
         """OpenClawを使用して生成処理を行いやす"""
