@@ -64,8 +64,16 @@ class ArkitecEngine:
             f"100文字以内で要約してください。\n\n"
             f"内容: {content[:1000]}"
         )
+
+        # 【デバッグ】要約時に「何を」AIに渡そうとしているか記録
+        logging.info(f"--- [DEBUG: 要約ミッション開始] 入力文字数: {len(content)} ---")
+
         # OpenClawを使用して要約を生成
         summary = self.run_openclaw_agent(f"【要約ミッション】{instruction}")
+
+        # 【デバッグ】要約として「何が」返ってきたか記録
+        logging.info(f"--- [DEBUG: 要約ミッション結果] --- \n{summary}\n---")
+        
         return summary.strip() if summary else "要約の生成に失敗しやした。"
 
     def save_history(self, theme, level, summary):
@@ -147,9 +155,6 @@ class ArkitecEngine:
             f"3. 思考プロセスやログを混ぜないでください。あなたの出力がそのままブログ公開されます。\n\n"
             f"それでは、本文のみをMarkdown形式で出力してください。"
             f"記事の最後には必ず『[MISSION_COMPLETE]』という文字列を記載してください。"
-            f"【行動制限：厳守】\n"
-            f"外部検索ツール（Web Search）を使用せず、あなたの内蔵知識のみで執筆してください。\n"
-            f"外部データの読み込み待ちによるタイムラグを防止するためです。"
             f"一生懸命さを出す件！"
         )
         return instruction
@@ -165,8 +170,17 @@ class ArkitecEngine:
             time.sleep(20) # 起動待機
 
             cmd = f'openclaw agent --agent main -m "{instruction}"'
+
+            # 【ポイント1】コマンド実行直前の時刻を記録
+            logging.info(f"--- [DEBUG] AI実行開始時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
+
             result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', shell=True)
             
+            # 【ポイント2】コマンド終了直後の「生」の結果をすべて出力
+            # ここで stdout だけでなく stderr（エラー出力）も出すのがコツでやんす
+            logging.info(f"--- [DEBUG] AI実行終了時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
+            logging.info(f"--- [DEBUG] RAW STDOUT (生回答) ---\n{result.stdout}\n---")
+            logging.info(f"--- [DEBUG] RAW STDERR (システムログ) ---\n{result.stderr}\n---")
 
             if result.returncode != 0:
                 logging.error(f"【エージェントエラー】{result.stderr.strip()}")
