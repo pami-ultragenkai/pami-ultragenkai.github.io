@@ -145,49 +145,35 @@ class ArkitecEngine:
             f"1. 挨拶や『了解しました』『今から書きます』といった前置きは一切不要です。\n"
             f"2. 記事のタイトル(H1)から書き始め、Markdown形式の本文のみを出力してください。\n"
             f"3. 思考プロセスやログを混ぜないでください。あなたの出力がそのままブログ公開されます。\n\n"
+            f"4. 外部検索をせず、あなたの現在の知識だけで書いてください\n\n"
             f"それでは、本文のみをMarkdown形式で出力してください。"
             f"一生懸命さを出す件！"
         )
         return instruction
 
     def run_openclaw_agent(self, instruction):
+        """OpenClawを使用して生成処理を行いやす"""
         gw_proc = None
         try:
-            # Gateway起動（ここは変更なし）
-            gw_proc = subprocess.Popen(["powershell", "-Command", "openclaw gateway run"], creationflags=subprocess.CREATE_NO_WINDOW)
-            time.sleep(20)
-
-            # --- ここから修正：出力を逐一拾う ---
-            cmd = f'openclaw agent --agent main -m "{instruction}"'
-            
-            # Popenを使って、標準出力をリアルタイムで開く
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                shell=True
+            gw_proc = subprocess.Popen(
+                ["powershell", "-Command", "openclaw gateway run"],
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
+            time.sleep(20) # 起動待機
 
-            full_output = ""
-            # 出力が終わるまで読み続ける
-            while True:
-                line = proc.stdout.readline()
-                if not line and proc.poll() is not None:
-                    break
-                if line:
-                    full_output += line
+            cmd = f'openclaw agent --agent main -m "{instruction}"'
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', shell=True)
             
-            # 最後にエラーが出てないか確認
-            stderr = proc.stderr.read()
-            if proc.returncode != 0 and not full_output:
-                logging.error(f"【エラー】{stderr}")
+
+            if result.returncode != 0:
+                logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
-
-            return full_output.strip()
-            # ----------------------------------
-
+            
+            logging.info(f"【AI結果】： {result}")
+            return result.stdout.strip()
+        except Exception as e:
+            logging.error(f"【システムエラー】{e}")
+            return None
         finally:
             if gw_proc:
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
