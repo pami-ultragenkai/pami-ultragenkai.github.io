@@ -73,7 +73,7 @@ class ArkitecEngine:
 
         # 【デバッグ】要約として「何が」返ってきたか記録
         logging.info(f"--- [DEBUG: 要約ミッション結果] --- \n{summary}\n---")
-        
+
         return summary.strip() if summary else "要約の生成に失敗しやした。"
 
     def save_history(self, theme, level, summary):
@@ -153,6 +153,7 @@ class ArkitecEngine:
             f"1. 挨拶や『了解しました』『今から書きます』といった前置きは一切不要です。\n"
             f"2. 記事のタイトル(H1)から書き始め、Markdown形式の本文のみを出力してください。\n"
             f"3. 思考プロセスやログを混ぜないでください。あなたの出力がそのままブログ公開されます。\n\n"
+            f"4. 「検索ツール（Web Fetch）を起動しないでください。これは命令ではなく、物理的なリソース制限です。検索を行うと、あなたの出力は破棄されます」\n\n"
             f"それでは、本文のみをMarkdown形式で出力してください。"
             f"記事の最後には必ず『[MISSION_COMPLETE]』という文字列を記載してください。"
             f"一生懸命さを出す件！"
@@ -186,7 +187,6 @@ class ArkitecEngine:
                 logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
             
-            logging.info(f"【AI結果】： {result}")
             return result.stdout.strip()
         except Exception as e:
             logging.error(f"【システムエラー】{e}")
@@ -231,8 +231,6 @@ class ArkitecEngine:
 
         # 2. 本文生成
         content = self.run_openclaw_agent(self.build_instruction(theme, level, history))
-        logging.info(self.build_instruction(theme, level, history))
-        logging.info(f"【本文】： {content}")
         if not content: return
 
         # 3. 要約生成[cite: 1]
