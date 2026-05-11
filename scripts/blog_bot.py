@@ -138,42 +138,66 @@ class ArkitecEngine:
         
         instruction = (
             f"あなたは以下の人格を持つエンジニアです。\n"
+            f"名前: {char['name']}\n"
+            f"プロフィール: {profile}\n"
+            f"口調: {char['style']['tone']}\n\n"
+            f"【現在の状況】\n"
+            f"合計報酬スコア: {history['total_score']}点 (目標: 1000点)\n"
             f"今回のミッション: {theme} ({level}編)\n\n"
+            f"【執筆ガイドライン】\n"
+            f"1. 難易度設定: {lv_def['description']}\n"
+            f"2. 重点項目: {focus_points}\n"
+            f"3. 技術深さ: {lv_def['technical_depth']}\n"
+            f"4. 重複回避: 過去の履歴を既知の知識とし、新たな視点で書いてください。\n\n"
             f"【出力に関する鉄の掟：厳守】\n"
             f"1. 挨拶や『了解しました』『今から書きます』といった前置きは一切不要です。\n"
             f"2. 記事のタイトル(H1)から書き始め、Markdown形式の本文のみを出力してください。\n"
             f"3. 思考プロセスやログを混ぜないでください。あなたの出力がそのままブログ公開されます。\n\n"
+            f"それでは、本文のみをMarkdown形式で出力してください。"
+            f"記事の最後には必ず『[MISSION_COMPLETE]』という文字列を記載してください。"
+            f"一生懸命さを出す件！"
         )
         return instruction
 
     def run_openclaw_agent(self, instruction):
-        """OpenClawを使用して生成処理を行いやす"""
+        """OpenClawを使用して生成処理を行いやす。Windowsのパス問題を解決したリスト形式でやんす！"""
         gw_proc = None
         try:
+            # Gateway起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
-            time.sleep(20) # 起動待機
+            time.sleep(20)
 
-            cmd = f'openclaw agent --agent main -m "{instruction}"'
+            # --- ここが修正の肝でやんす ---
+            # Windowsでは shell=True にするか、powershell経由にしないと
+            # リスト形式のコマンド（openclaw単体）を認識してくれやせん。
+            cmd_list = ["powershell", "-Command", f"openclaw agent --agent main -m '{instruction}'"]
 
-            # 【ポイント1】コマンド実行直前の時刻を記録
             logging.info(f"--- [DEBUG] AI実行開始時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
 
-            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', shell=True)
-            
-            # 【ポイント2】コマンド終了直後の「生」の結果をすべて出力
-            # ここで stdout だけでなく stderr（エラー出力）も出すのがコツでやんす
-            logging.info(f"--- [DEBUG] AI実行終了時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
-            logging.info(f"--- [DEBUG] RAW STDOUT (生回答) ---\n{result.stdout}\n---")
-            logging.info(f"--- [DEBUG] RAW STDERR (システムログ) ---\n{result.stderr}\n---")
+            # 以前の publish.py と同じく、capture_output を使って確実に回収しやす
+            result = subprocess.run(
+                cmd_list, 
+                capture_output=True, 
+                text=True, 
+                encoding='utf-8',
+                errors='replace' # 文字化け対策にお守りとして追加しやした
+            )
+            # ----------------------------
 
+            logging.info(f"--- [DEBUG] AI実行終了時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
+            
             if result.returncode != 0:
                 logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
             
+            # 生の出力をログに焼き付けて、何が取れたか確認しやす
+            logging.info(f"--- [DEBUG] RAW STDOUT ---\n{result.stdout}\n---")
+            
             return result.stdout.strip()
+
         except Exception as e:
             logging.error(f"【システムエラー】{e}")
             return None
