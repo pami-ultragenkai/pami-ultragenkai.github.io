@@ -138,75 +138,50 @@ class ArkitecEngine:
         
         instruction = (
             f"あなたは以下の人格を持つエンジニアです。\n"
-            f"名前: {char['name']}\n"
-            f"プロフィール: {profile}\n"
-            f"口調: {char['style']['tone']}\n\n"
-            f"【現在の状況】\n"
-            f"合計報酬スコア: {history['total_score']}点 (目標: 1000点)\n"
             f"今回のミッション: {theme} ({level}編)\n\n"
-            f"【執筆ガイドライン】\n"
-            f"1. 難易度設定: {lv_def['description']}\n"
-            f"2. 重点項目: {focus_points}\n"
-            f"3. 技術深さ: {lv_def['technical_depth']}\n"
-            f"4. 重複回避: 過去の履歴を既知の知識とし、新たな視点で書いてください。\n\n"
             f"【出力に関する鉄の掟：厳守】\n"
             f"1. 挨拶や『了解しました』『今から書きます』といった前置きは一切不要です。\n"
             f"2. 記事のタイトル(H1)から書き始め、Markdown形式の本文のみを出力してください。\n"
             f"3. 思考プロセスやログを混ぜないでください。あなたの出力がそのままブログ公開されます。\n\n"
-            f"それでは、本文のみをMarkdown形式で出力してください。"
-            f"記事の最後には必ず『[MISSION_COMPLETE]』という文字列を記載してください。"
-            f"一生懸命さを出す件！"
         )
         return instruction
 
     def run_openclaw_agent(self, instruction):
-        """OpenClawを実行し、プロセスが完全に終了するまで全出力を待ち受けやす"""
+        """OpenClawを使用して生成処理を行いやす"""
         gw_proc = None
         try:
-            # Gateway起動（ここは変更なし）
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
-            time.sleep(20)
+            time.sleep(20) # 起動待機
 
-            # エージェント実行コマンド
             cmd = f'openclaw agent --agent main -m "{instruction}"'
+
+            # 【ポイント1】コマンド実行直前の時刻を記録
+            logging.info(f"--- [DEBUG] AI実行開始時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
+
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', shell=True)
             
-            # --- 修正ポイント：Popenで開き、全出力を「完遂」するまで待つ ---
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                shell=True
-            )
+            # 【ポイント2】コマンド終了直後の「生」の結果をすべて出力
+            # ここで stdout だけでなく stderr（エラー出力）も出すのがコツでやんす
+            logging.info(f"--- [DEBUG] AI実行終了時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
+            logging.info(f"--- [DEBUG] RAW STDOUT (生回答) ---\n{result.stdout}\n---")
+            logging.info(f"--- [DEBUG] RAW STDERR (システムログ) ---\n{result.stderr}\n---")
 
-            # communicate() は、プロセスが終了するまでブロック（待機）し、
-            # その間に stdout に流れた全データをガバッと回収しやす。
-            # これなら検索ログの後に続く「本物の記事」も逃しやせん！
-            stdout, stderr = proc.communicate()
-
-            if proc.returncode != 0:
-                logging.error(f"【OpenClawエラー】{stderr}")
+            if result.returncode != 0:
+                logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
             
-            # ログには全文出すと大変なので、取得できたことだけ記録
-            logging.info(f"【AI応答回収完了】文字数: {len(stdout)}")
-            
-            # 生の出力を返す（stripは後続の処理に任せやす）
-            return stdout
-
+            return result.stdout.strip()
         except Exception as e:
-            logging.error(f"【実行失敗】{e}")
+            logging.error(f"【システムエラー】{e}")
             return None
         finally:
             if gw_proc:
-                # Gatewayの後始末
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
                 gw_proc.terminate()
-                
+
     def create_markdown(self, title, body, filename):
         """生成内容をMDファイルとして保存しやす"""
         timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+09:00")
