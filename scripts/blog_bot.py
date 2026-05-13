@@ -165,41 +165,34 @@ class ArkitecEngine:
 
     def run_openclaw_agent(self, instruction):
         """
-        OpenClawの頑固な仕様(-m必須)と、Windowsの限界を両立させる
-        『ファイル展開・注入方式』でやんす！
+        Windowsの引数制限を完全に回避するため、標準入力(stdin)から直接指示を流し込みやす。
+        OpenClawに『-m -』を指定することで、標準入力を待機させやすぜ！
         """
         gw_proc = None
-        # ファイルパスは確実に「絶対パス」で指定しやす
-        temp_file = os.path.abspath("mission_instruction.txt")
-        
         try:
-            # 1. 指示内容を一時ファイルに保存（UTF-8）
-            with open(temp_file, "w", encoding="utf-8") as f:
-                f.write(instruction)
-
-            # 2. Gateway 起動
+            # 1. Gateway 起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             time.sleep(20)
 
-            # 3. エージェント実行
-            # 【ここが急所でやんす！】
-            # PowerShellの機能を使って、ファイルの中身を変数 $msg に一度完全に取り込み、
-            # それを -m に食わせやす。これなら「引数不足」も「バラバラ事件」も起きやせん。
-            cmd = f'powershell -Command "$msg = Get-Content -Raw -Path \'{temp_file}\'; openclaw agent --agent main -m $msg"'
+            # 2. エージェント実行
+            # ポイント：'-m', '-' と指定することで「標準入力からメッセージを読む」モードになりやす。
+            # これなら引数として instruction を渡さないので、too many arguments は物理的に起きやせん！
+            cmd = ["openclaw", "agent", "--agent", "main", "-m", "-"]
 
-            logging.info(f"--- [DEBUG] AI実行開始 ---")
+            logging.info(f"--- [DEBUG] AI実行開始 (入力文字数: {len(instruction)}) ---")
             
-            # shell=True を使い、cmd という「一つの命令」として Windows に投げやす
+            # subprocess.run の input 引数を使って、指示を安全に流し込みやす
             result = subprocess.run(
                 cmd,
+                input=instruction,
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                shell=True
+                shell=True  # Windowsでopenclawコマンドを認識させるために必要
             )
 
             if result.returncode != 0:
@@ -212,11 +205,8 @@ class ArkitecEngine:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
-            # 後始末：証拠隠滅でやんす
-            if os.path.exists(temp_file):
-                try: os.remove(temp_file)
-                except: pass
             if gw_proc:
+                # Gatewayの強制終了（これをしないと次回の実行が詰まりやす）
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
                 gw_proc.terminate()
 
