@@ -160,43 +160,40 @@ class ArkitecEngine:
 
     def run_openclaw_agent(self, instruction):
         """
-        本文生成・要約生成、すべての指示を一時ファイル経由で届ける『完遂版』。
-        これで Windows の引数制限も、改行による命令の断絶も、すべておさらばでやんす！
+        Windowsの『コマンド制限』を完全に無視できる、一時ファイル+リダイレクト方式でやんす。
+        これが、本文生成も要約生成も一切エラーなしで通る唯一のルートでやんす！
         """
         gw_proc = None
-        # 指示を一時保存するファイル名（実行ディレクトリに作成しやす）
-        temp_file = "temp_instruction.txt"
-        
+        temp_file = "temp_cmd.txt"
         try:
-            # 1. どんな指示（instruction）も、UTF-8でファイルに書き出す
+            # 1. 指示を一時ファイルに保存（文字化けを防ぐため utf-8 で書きやす）
             with open(temp_file, "w", encoding="utf-8") as f:
                 f.write(instruction)
-            
-            # 2. OpenClaw Gateway 起動
-            logging.info("【OpenClaw】Gateway起動...")
+
+            # 2. Gateway起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
-            time.sleep(20) # 起動を待つための「タメ」でやんす
+            time.sleep(20)
 
             # 3. エージェント実行
-            # ポイント：PowerShell の Get-Content -Raw を使って、
-            # ファイルの中身を一字一句漏らさず -m 引数に流し込みやす。
-            cmd = f'openclaw agent --agent main -m "$(Get-Content {temp_file} -Raw)"'
+            # ポイント：cmd /c のリダイレクト（<）を使いやす。
+            # これなら、プロンプトが1万文字あろうが、スペースだらけだろうが、
+            # Windowsの制限に引っかからず、そのまま AI の喉元まで届きやすぜ！
+            cmd = f'cmd /c "openclaw agent --agent main -m - < {temp_file}"'
 
-            logging.info(f"--- [DEBUG] AIミッション開始 ---")
+            logging.info(f"--- [DEBUG] AI実行開始 ---")
             
-            # shell=True を指定しつつ、PowerShell経由で実行することで Windows の壁を越えやす
             result = subprocess.run(
-                ["powershell", "-Command", cmd],
+                cmd,
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
-                errors='replace'
+                errors='replace',
+                shell=True
             )
 
-            # エラーが出た場合はログに詳細を焼きやす
             if result.returncode != 0:
                 logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
@@ -207,12 +204,10 @@ class ArkitecEngine:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
-            # 4. 後始末（一時ファイルとGatewayを確実に消去）
+            # 後始末：使い終わったファイルは消しやす
             if os.path.exists(temp_file):
-                try:
-                    os.remove(temp_file)
-                except:
-                    pass
+                try: os.remove(temp_file)
+                except: pass
             if gw_proc:
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
                 gw_proc.terminate()
