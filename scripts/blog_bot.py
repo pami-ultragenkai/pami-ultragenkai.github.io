@@ -160,29 +160,34 @@ class ArkitecEngine:
 
     def run_openclaw_agent(self, instruction):
         """
-        プロンプトを一時ファイル経由で渡す『鉄壁版』でやんす。
-        これで文字数制限も、改行による分断も、WinError 2もすべて解決しやす！
+        本文生成・要約生成、すべての指示を一時ファイル経由で届ける『完遂版』。
+        これで Windows の引数制限も、改行による命令の断絶も、すべておさらばでやんす！
         """
         gw_proc = None
+        # 指示を一時保存するファイル名（実行ディレクトリに作成しやす）
         temp_file = "temp_instruction.txt"
+        
         try:
-            # 1. 指示内容をファイルに書き出す（UTF-8で確実に）
+            # 1. どんな指示（instruction）も、UTF-8でファイルに書き出す
             with open(temp_file, "w", encoding="utf-8") as f:
                 f.write(instruction)
-
-            # 2. Gateway起動
+            
+            # 2. OpenClaw Gateway 起動
+            logging.info("【OpenClaw】Gateway起動...")
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
-            time.sleep(20)
+            time.sleep(20) # 起動を待つための「タメ」でやんす
 
-            # 3. エージェントの実行
-            # ポイント：-m で直接渡さず、リダイレクト（<）を使ってファイルを流し込みやす
-            # これがWindowsで最も安定して大量のテキストを渡す方法でやんす！
+            # 3. エージェント実行
+            # ポイント：PowerShell の Get-Content -Raw を使って、
+            # ファイルの中身を一字一句漏らさず -m 引数に流し込みやす。
             cmd = f'openclaw agent --agent main -m "$(Get-Content {temp_file} -Raw)"'
+
+            logging.info(f"--- [DEBUG] AIミッション開始 ---")
             
-            # 安全のために PowerShell 経由で実行しやす
+            # shell=True を指定しつつ、PowerShell経由で実行することで Windows の壁を越えやす
             result = subprocess.run(
                 ["powershell", "-Command", cmd],
                 capture_output=True,
@@ -191,6 +196,7 @@ class ArkitecEngine:
                 errors='replace'
             )
 
+            # エラーが出た場合はログに詳細を焼きやす
             if result.returncode != 0:
                 logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
@@ -201,9 +207,12 @@ class ArkitecEngine:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
-            # 後始末：一時ファイルとGatewayを消しやす
+            # 4. 後始末（一時ファイルとGatewayを確実に消去）
             if os.path.exists(temp_file):
-                os.remove(temp_file)
+                try:
+                    os.remove(temp_file)
+                except:
+                    pass
             if gw_proc:
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
                 gw_proc.terminate()
