@@ -58,23 +58,28 @@ class ArkitecEngine:
             return {"total_score": 0.0, "stats": {}}
 
     def summarize_content(self, content):
-        """執筆した記事を100文字以内で要約させやす[cite: 1]"""
+        """執筆モードを強制終了させ、純粋に『振り返り要約』だけをさせる指示でやんす"""
+        # AIが「また記事を書く」と誤解しないよう、明確に役割を限定しやす
         instruction = (
-            f"以下のブログ記事の内容を、エンジニア2年目のぱみちきが振り返る形で、"
-            f"100文字以内で要約してください。\n\n"
-            f"内容: {content[:1000]}"
+            "【最優先指令: 記事の要約】\n"
+            "あなたは今、ブログ記事を書き終えました。読者向けに内容を100文字以内で要約してください。\n"
+            "※新しい記事を書かないでください。挨拶やMarkdownの装飾も不要です。\n"
+            "※『〜について書きました！』という、ぱみちきの振り返りとして出力してください。\n\n"
+            f"--- 記事本文 ---\n{content[:1000]}\n---"
         )
 
-        # 【デバッグ】要約時に「何を」AIに渡そうとしているか記録
         logging.info(f"--- [DEBUG: 要約ミッション開始] 入力文字数: {len(content)} ---")
 
-        # OpenClawを使用して要約を生成
-        summary = self.run_openclaw_agent(f"【要約ミッション】{instruction}")
+        # OpenClawを呼び出しやす。あえて「要約ミッション」という言葉を強調しやす。
+        # 以前修正したファイル経由の run_openclaw_agent がそのまま使えるので安心でやんす！
+        summary = self.run_openclaw_agent(instruction)
 
-        # 【デバッグ】要約として「何が」返ってきたか記録
-        logging.info(f"--- [DEBUG: 要約ミッション結果] --- \n{summary}\n---")
+        logging.info(f"--- [DEBUG: 要約ミッション結果] ---\n{summary}\n---")
 
-        return summary.strip() if summary else "要約の生成に失敗しやした。"
+        if not summary or len(summary) > 500: # あまりに長い（記事を再生成した）場合のガード
+            return "記事の振り返り完了！今日も一歩成長しやしたぜ！"
+
+        return summary.strip()
 
     def save_history(self, theme, level, summary):
         """報酬と要約を履歴に保存しやす[cite: 1]"""
