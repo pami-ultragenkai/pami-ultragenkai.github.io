@@ -154,47 +154,45 @@ class ArkitecEngine:
             f"2. 記事のタイトル(H1)から書き始め、Markdown形式の本文のみを出力してください。\n"
             f"3. 思考プロセスやログを混ぜないでください。あなたの出力がそのままブログ公開されます。\n\n"
             f"それでは、本文のみをMarkdown形式で出力してください。"
-            f"記事の最後には必ず『[MISSION_COMPLETE]』という文字列を記載してください。"
             f"一生懸命さを出す件！"
         )
         return instruction
 
     def run_openclaw_agent(self, instruction):
-        """OpenClawを使用して生成処理を行いやす。Windowsのパス問題を解決したリスト形式でやんす！"""
+        """
+        PowerShellの誤解を解き、日本語プロンプトを安全に届ける最終形。
+        リスト形式の先頭を微調整しやした！
+        """
         gw_proc = None
         try:
-            # Gateway起動
+            # 1. Gateway起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             time.sleep(20)
 
-            # --- ここが修正の肝でやんす ---
-            # Windowsでは shell=True にするか、powershell経由にしないと
-            # リスト形式のコマンド（openclaw単体）を認識してくれやせん。
-            cmd_list = ["powershell", "-Command", f"openclaw agent --agent main -m '{instruction}'"]
+            # 2. エージェントの実行
+            # ポイント：PowerShell を介さず、cmd.exe 経由（shell=True）で
+            # リスト形式のまま渡すのが、Windowsで最も文字化けや誤認が少ない方法でやんす。
+            cmd = ["openclaw", "agent", "--agent", "main", "-m", instruction]
 
-            logging.info(f"--- [DEBUG] AI実行開始時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
-
-            # 以前の publish.py と同じく、capture_output を使って確実に回収しやす
+            logging.info(f"--- [DEBUG] AI実行開始 ---")
+            
+            # shell=True を指定しつつ、リスト形式で渡すことで
+            # WinError 2 を防ぎ、かつプロンプトを「塊」として届けやす
             result = subprocess.run(
-                cmd_list, 
+                cmd, 
                 capture_output=True, 
                 text=True, 
                 encoding='utf-8',
-                errors='replace' # 文字化け対策にお守りとして追加しやした
+                errors='replace',
+                shell=True # これがWindowsでの「openclaw」認識に必要でやんす
             )
-            # ----------------------------
 
-            logging.info(f"--- [DEBUG] AI実行終了時刻: {datetime.now().strftime('%H:%M:%S.%f')} ---")
-            
             if result.returncode != 0:
                 logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
-            
-            # 生の出力をログに焼き付けて、何が取れたか確認しやす
-            logging.info(f"--- [DEBUG] RAW STDOUT ---\n{result.stdout}\n---")
             
             return result.stdout.strip()
 
