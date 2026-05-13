@@ -165,34 +165,40 @@ class ArkitecEngine:
 
     def run_openclaw_agent(self, instruction):
         """
-        Windowsの引数制限を完全に回避するため、標準入力(stdin)から直接指示を流し込みやす。
-        OpenClawに『-m -』を指定することで、標準入力を待機させやすぜ！
+        OpenClawの「-m必須」をダミーで回避し、
+        リダイレクトで長文を流し込む、Windows環境の最終解答でやんす。
         """
         gw_proc = None
+        temp_file = os.path.abspath("temp_instruction.txt")
+        
         try:
-            # 1. Gateway 起動
+            # 1. 指示内容をファイルに書き出す
+            with open(temp_file, "w", encoding="utf-8") as f:
+                f.write(instruction)
+
+            # 2. Gateway 起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             time.sleep(20)
 
-            # 2. エージェント実行
-            # ポイント：'-m', '-' と指定することで「標準入力からメッセージを読む」モードになりやす。
-            # これなら引数として instruction を渡さないので、too many arguments は物理的に起きやせん！
-            cmd = ["openclaw", "agent", "--agent", "main", "-m", "-"]
+            # 3. エージェント実行
+            # 【ここが地獄の果ての正解でやんす】
+            # -m には適当な一文字 "." を入れ、OpenClawのチェックを黙らせやす。
+            # その直後に < を使って、ファイルの中身を標準入力として全量叩き込みやす。
+            # ※ cmd /c を使うことで、Windowsのリダイレクト機能を100%活かしやす。
+            cmd = f'cmd /c "openclaw agent --agent main -m . < \"{temp_file}\""'
 
             logging.info(f"--- [DEBUG] AI実行開始 (入力文字数: {len(instruction)}) ---")
             
-            # subprocess.run の input 引数を使って、指示を安全に流し込みやす
             result = subprocess.run(
                 cmd,
-                input=instruction,
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                shell=True  # Windowsでopenclawコマンドを認識させるために必要
+                shell=True 
             )
 
             if result.returncode != 0:
@@ -205,8 +211,11 @@ class ArkitecEngine:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
+            # 後始末
+            if os.path.exists(temp_file):
+                try: os.remove(temp_file)
+                except: pass
             if gw_proc:
-                # Gatewayの強制終了（これをしないと次回の実行が詰まりやす）
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
                 gw_proc.terminate()
 
