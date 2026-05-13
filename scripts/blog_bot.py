@@ -160,17 +160,19 @@ class ArkitecEngine:
 
     def run_openclaw_agent(self, instruction):
         """
-        Windowsの『コマンド制限』を完全に無視できる、一時ファイル+リダイレクト方式でやんす。
-        これが、本文生成も要約生成も一切エラーなしで通る唯一のルートでやんす！
+        OpenClawの頑固な仕様(-m必須)と、Windowsの限界を両立させる
+        『ファイル展開・注入方式』でやんす！
         """
         gw_proc = None
-        temp_file = "temp_cmd.txt"
+        # ファイルパスは確実に「絶対パス」で指定しやす
+        temp_file = os.path.abspath("mission_instruction.txt")
+        
         try:
-            # 1. 指示を一時ファイルに保存（文字化けを防ぐため utf-8 で書きやす）
+            # 1. 指示内容を一時ファイルに保存（UTF-8）
             with open(temp_file, "w", encoding="utf-8") as f:
                 f.write(instruction)
 
-            # 2. Gateway起動
+            # 2. Gateway 起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
@@ -178,13 +180,14 @@ class ArkitecEngine:
             time.sleep(20)
 
             # 3. エージェント実行
-            # ポイント：cmd /c のリダイレクト（<）を使いやす。
-            # これなら、プロンプトが1万文字あろうが、スペースだらけだろうが、
-            # Windowsの制限に引っかからず、そのまま AI の喉元まで届きやすぜ！
-            cmd = f'cmd /c "openclaw agent --agent main -m - < {temp_file}"'
+            # 【ここが急所でやんす！】
+            # PowerShellの機能を使って、ファイルの中身を変数 $msg に一度完全に取り込み、
+            # それを -m に食わせやす。これなら「引数不足」も「バラバラ事件」も起きやせん。
+            cmd = f'powershell -Command "$msg = Get-Content -Raw -Path \'{temp_file}\'; openclaw agent --agent main -m $msg"'
 
             logging.info(f"--- [DEBUG] AI実行開始 ---")
             
+            # shell=True を使い、cmd という「一つの命令」として Windows に投げやす
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -204,7 +207,7 @@ class ArkitecEngine:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
-            # 後始末：使い終わったファイルは消しやす
+            # 後始末：証拠隠滅でやんす
             if os.path.exists(temp_file):
                 try: os.remove(temp_file)
                 except: pass
