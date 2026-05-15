@@ -185,7 +185,8 @@ class ArkitecEngine:
             # 【ここが急所でやんす！】
             # PowerShellの機能を使って、ファイルの中身を変数 $msg に一度完全に取り込み、
             # それを -m に食わせやす。これなら「引数不足」も「バラバラ事件」も起きやせん。
-            logging.info(f"temp_file中身：{temp_file}-")
+            with open(temp_file, "r", encoding="utf-8") as f:
+                logging.info(f"--- [DEBUG: temp_file中身：] ---\n{f.read()}\n---")
             cmd = f'powershell -Command "$msg = Get-Content -Raw -Path \'{temp_file}\'; openclaw agent --agent main -m $msg"'
 
             logging.info(f"--- [DEBUG] AI実行開始 ---")
