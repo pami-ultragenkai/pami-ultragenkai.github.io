@@ -165,14 +165,15 @@ class ArkitecEngine:
 
     def run_openclaw_agent(self, instruction):
         """
-        OpenClawの「-m必須」をダミーで回避し、
-        リダイレクトで長文を流し込む、Windows環境の最終解答でやんす。
+        OpenClawの頑固な仕様(-m必須)と、Windowsの限界を両立させる
+        『ファイル展開・注入方式』でやんす！
         """
         gw_proc = None
-        temp_file = os.path.abspath("temp_instruction.txt")
+        # ファイルパスは確実に「絶対パス」で指定しやす
+        temp_file = os.path.abspath("mission_instruction.txt")
         
         try:
-            # 1. 指示内容をファイルに書き出す
+            # 1. 指示内容を一時ファイルに保存（UTF-8）
             with open(temp_file, "w", encoding="utf-8") as f:
                 f.write(instruction)
 
@@ -184,21 +185,21 @@ class ArkitecEngine:
             time.sleep(20)
 
             # 3. エージェント実行
-            # 【ここが地獄の果ての正解でやんす】
-            # -m には適当な一文字 "." を入れ、OpenClawのチェックを黙らせやす。
-            # その直後に < を使って、ファイルの中身を標準入力として全量叩き込みやす。
-            # ※ cmd /c を使うことで、Windowsのリダイレクト機能を100%活かしやす。
-            cmd = f'cmd /c "openclaw agent --agent main -m . < \"{temp_file}\""'
+            # 【ここが急所でやんす！】
+            # PowerShellの機能を使って、ファイルの中身を変数 $msg に一度完全に取り込み、
+            # それを -m に食わせやす。これなら「引数不足」も「バラバラ事件」も起きやせん。
+            cmd = f'powershell -Command "$msg = Get-Content -Raw -Path \'{temp_file}\'; openclaw agent --agent main -m $msg"'
 
-            logging.info(f"--- [DEBUG] AI実行開始 (入力文字数: {len(instruction)}) ---")
+            logging.info(f"--- [DEBUG] AI実行開始 ---")
             
+            # shell=True を使い、cmd という「一つの命令」として Windows に投げやす
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                shell=True 
+                shell=True
             )
 
             if result.returncode != 0:
@@ -211,7 +212,7 @@ class ArkitecEngine:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
-            # 後始末
+            # 後始末：証拠隠滅でやんす
             if os.path.exists(temp_file):
                 try: os.remove(temp_file)
                 except: pass
