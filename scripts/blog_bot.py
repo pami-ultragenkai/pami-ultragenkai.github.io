@@ -58,28 +58,25 @@ class ArkitecEngine:
             return {"total_score": 0.0, "stats": {}}
 
     def summarize_content(self, content):
-        """執筆モードを強制終了させ、純粋に『振り返り要約』だけをさせる指示でやんす"""
-        # AIが「また記事を書く」と誤解しないよう、明確に役割を限定しやす
+        """本文から要約に必要なエッセンスだけを抽出してAIに渡しやす"""
+        
+        # --- [改善] 全文ではなく、冒頭500文字程度に絞る ---
+        # これだけで、Windowsの引数制限に引っかかるリスクが激減しやす
+        essential_content = content[:500] 
+        
         instruction = (
-            "【最優先指令: 記事の要約】\n"
-            "あなたは今、ブログ記事を書き終えました。読者向けに内容を100文字以内で要約してください。\n"
-            "※新しい記事を書かないでください。挨拶やMarkdownの装飾も不要です。\n"
-            "※『〜について書きました！』という、ぱみちきの振り返りとして出力してください。\n\n"
-            f"--- 記事本文 ---\n{content[:1000]}\n---"
+            "以下のブログ記事の内容を、エンジニア2年目のぱみちきが振り返る形で、"
+            "100文字以内で一言に要約してください。\n"
+            "※『〜について書きました！』という形式で出力してください。\n\n"
+            f"内容概要: {essential_content}"
         )
-
-        logging.info(f"--- [DEBUG: 要約ミッション開始] 入力文字数: {len(content)} ---")
-
-        # OpenClawを呼び出しやす。あえて「要約ミッション」という言葉を強調しやす。
-        # 以前修正したファイル経由の run_openclaw_agent がそのまま使えるので安心でやんす！
+        
+        logging.info(f"--- [DEBUG: 要約ミッション開始] 入力文字数: {len(content)} -> 抽出: {len(essential_content)} ---")
+        
+        # 実行
         summary = self.run_openclaw_agent(instruction)
-
-        logging.info(f"--- [DEBUG: 要約ミッション結果] ---\n{summary}\n---")
-
-        if not summary or len(summary) > 500: # あまりに長い（記事を再生成した）場合のガード
-            return "記事の振り返り完了！今日も一歩成長しやしたぜ！"
-
-        return summary.strip()
+        
+        return summary if summary else "要約の生成に失敗しやした。"
 
     def save_history(self, theme, level, summary):
         """報酬と要約を履歴に保存しやす[cite: 1]"""
@@ -164,33 +161,20 @@ class ArkitecEngine:
         return instruction
 
     def run_openclaw_agent(self, instruction):
-        """
-        OpenClawの「-m必須」をダミーで回避し、
-        リダイレクトで長文を流し込む、Windows環境の最終解答でやんす。
-        """
+        """実行直前のプロンプトをログに焼き、OpenClawを呼び出しやす"""
         gw_proc = None
-        temp_file = os.path.abspath("temp_instruction.txt")
-        
         try:
-            # 1. 指示内容をファイルに書き出す
-            with open(temp_file, "w", encoding="utf-8") as f:
-                f.write(instruction)
+            # 【デバッグ】実際にAIに送る「生の文字列」をログに記録しやす
+            logging.info(f"--- [DEBUG: AI送信プロンプト] ---\n{instruction}\n------------------------------")
 
-            # 2. Gateway 起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             time.sleep(20)
 
-            # 3. エージェント実行
-            # 【ここが地獄の果ての正解でやんす】
-            # -m には適当な一文字 "." を入れ、OpenClawのチェックを黙らせやす。
-            # その直後に < を使って、ファイルの中身を標準入力として全量叩き込みやす。
-            # ※ cmd /c を使うことで、Windowsのリダイレクト機能を100%活かしやす。
-            cmd = f'cmd /c "openclaw agent --agent main -m . < \"{temp_file}\""'
-
-            logging.info(f"--- [DEBUG] AI実行開始 (入力文字数: {len(instruction)}) ---")
+            # 最もシンプルで壊れにくい、shell=True + リスト形式に戻しやす
+            cmd = ["openclaw", "agent", "--agent", "main", "-m", instruction]
             
             result = subprocess.run(
                 cmd,
@@ -198,23 +182,23 @@ class ArkitecEngine:
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                shell=True 
+                shell=True
             )
 
+            # 【デバッグ】AIからの「生の返答」を記録しやす
             if result.returncode != 0:
-                logging.error(f"【エージェントエラー】{result.stderr.strip()}")
+                logging.error(f"【エージェントエラー】STDERR: {result.stderr.strip()}")
                 return None
             
-            return result.stdout.strip()
+            res_text = result.stdout.strip()
+            logging.info(f"--- [DEBUG: AI生の返答] ---\n{res_text}\n---------------------------")
+            
+            return res_text
 
         except Exception as e:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
-            # 後始末
-            if os.path.exists(temp_file):
-                try: os.remove(temp_file)
-                except: pass
             if gw_proc:
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
                 gw_proc.terminate()
