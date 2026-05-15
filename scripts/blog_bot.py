@@ -68,6 +68,8 @@ class ArkitecEngine:
         # 【デバッグ】要約時に「何を」AIに渡そうとしているか記録
         logging.info(f"--- [DEBUG: 要約ミッション開始] 入力文字数: {len(content)} ---")
 
+        logging.info(f"--- [DEBUG: 要約元ネタ]  {instruction} ")
+
         # OpenClawを使用して要約を生成
         summary = self.run_openclaw_agent(f"【要約ミッション】{instruction}")
 
@@ -183,6 +185,7 @@ class ArkitecEngine:
             # 【ここが急所でやんす！】
             # PowerShellの機能を使って、ファイルの中身を変数 $msg に一度完全に取り込み、
             # それを -m に食わせやす。これなら「引数不足」も「バラバラ事件」も起きやせん。
+            logging.info(f"temp_file中身：{temp_file}-")
             cmd = f'powershell -Command "$msg = Get-Content -Raw -Path \'{temp_file}\'; openclaw agent --agent main -m $msg"'
 
             logging.info(f"--- [DEBUG] AI実行開始 ---")
