@@ -58,26 +58,25 @@ class ArkitecEngine:
             return {"total_score": 0.0, "stats": {}}
 
     def summarize_content(self, content):
-        """本文の全量を投げず、要約に必要な冒頭部分だけを渡して混乱を防ぎやす"""
-        
-        # 冒頭500文字程度に絞ることで、リダイレクトの詰まりを物理的に防ぎやす
-        # これなら「変なボタン押しちゃった」というメタ発言も出にくくなるはずでやんす
-        essential_content = content[:500] 
-        
+        """執筆モードを強制終了させ、純粋に『振り返り要約』だけをさせる指示でやんす"""
+        # AIが「また記事を書く」と誤解しないよう、明確に役割を限定しやす
         instruction = (
-            "【要約ミッション】\n"
-            "以下のブログ記事の内容を、エンジニア2年目のぱみちきが振り返る形で、"
-            "100文字以内で一言に要約してください。\n"
-            "※『〜について書きました！』という形式で出力してください。\n\n"
-            f"--- 記事冒頭 ---\n{essential_content}\n---"
+            "【最優先指令: 記事の要約】\n"
+            "あなたは今、ブログ記事を書き終えました。読者向けに内容を100文字以内で要約してください。\n"
+            "※新しい記事を書かないでください。挨拶やMarkdownの装飾も不要です。\n"
+            "※『〜について書きました！』という、ぱみちきの振り返りとして出力してください。\n\n"
+            f"--- 記事本文 ---\n{content[:1000]}\n---"
         )
-        
-        logging.info(f"--- [DEBUG: 要約ミッション開始] 本文文字数: {len(content)} -> 抽出: {len(essential_content)} ---")
-        
+
+        logging.info(f"--- [DEBUG: 要約ミッション開始] 入力文字数: {len(content)} ---")
+
+        # OpenClawを呼び出しやす。あえて「要約ミッション」という言葉を強調しやす。
+        # 以前修正したファイル経由の run_openclaw_agent がそのまま使えるので安心でやんす！
         summary = self.run_openclaw_agent(instruction)
-        
-        # もし要約が長すぎたり空だったりした場合のバックアップ
-        if not summary or len(summary) > 300:
+
+        logging.info(f"--- [DEBUG: 要約ミッション結果] ---\n{summary}\n---")
+
+        if not summary or len(summary) > 500: # あまりに長い（記事を再生成した）場合のガード
             return "記事の振り返り完了！今日も一歩成長しやしたぜ！"
 
         return summary.strip()
@@ -166,37 +165,32 @@ class ArkitecEngine:
 
     def run_openclaw_agent(self, instruction):
         """
-        OpenClawの『過去の失敗記憶』を完全に消去してから実行しやす！
-        これであの不気味な謝罪ループを断ち切りやすぜ。
+        OpenClawの「-m必須」をダミーで回避し、
+        リダイレクトで長文を流し込む、Windows環境の最終解答でやんす。
         """
         gw_proc = None
         temp_file = os.path.abspath("temp_instruction.txt")
         
-        # --- [追加] AIの記憶喪失ミッション ---
-        # OpenClawが保持しているチャット履歴ファイルを削除して、
-        # 常に「まっさらな状態」で指示を聞かせやす。
-        # ※場所は環境によりますが、通常は実行ディレクトリの .openclaw フォルダ内でやんす
-        history_db = Path.home() / ".openclaw" / "conversations.db" # 一般的な場所の例
-        if history_db.exists():
-            try:
-                os.remove(history_db)
-                logging.info("【システム】AIの過去の記憶をリセットしやした。")
-            except: pass
-
         try:
+            # 1. 指示内容をファイルに書き出す
             with open(temp_file, "w", encoding="utf-8") as f:
                 f.write(instruction)
 
+            # 2. Gateway 起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             time.sleep(20)
 
-            # リダイレクト方式は変えずに、AIに「これは新規ミッションだ」と強く自覚させやす
+            # 3. エージェント実行
+            # 【ここが地獄の果ての正解でやんす】
+            # -m には適当な一文字 "." を入れ、OpenClawのチェックを黙らせやす。
+            # その直後に < を使って、ファイルの中身を標準入力として全量叩き込みやす。
+            # ※ cmd /c を使うことで、Windowsのリダイレクト機能を100%活かしやす。
             cmd = f'cmd /c "openclaw agent --agent main -m . < \"{temp_file}\""'
 
-            logging.info(f"--- [DEBUG] AI実行開始 ---")
+            logging.info(f"--- [DEBUG] AI実行開始 (入力文字数: {len(instruction)}) ---")
             
             result = subprocess.run(
                 cmd,
@@ -217,13 +211,14 @@ class ArkitecEngine:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
+            # 後始末
             if os.path.exists(temp_file):
                 try: os.remove(temp_file)
                 except: pass
             if gw_proc:
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
                 gw_proc.terminate()
-                
+
     def create_markdown(self, title, body, filename):
         """生成内容をMDファイルとして保存しやす"""
         timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+09:00")
