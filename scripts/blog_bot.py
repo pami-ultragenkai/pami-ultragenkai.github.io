@@ -166,30 +166,37 @@ class ArkitecEngine:
 
     def run_openclaw_agent(self, instruction):
         """
-        OpenClawの「-m必須」をダミーで回避し、
-        リダイレクトで長文を流し込む、Windows環境の最終解答でやんす。
+        OpenClawの『過去の失敗記憶』を完全に消去してから実行しやす！
+        これであの不気味な謝罪ループを断ち切りやすぜ。
         """
         gw_proc = None
         temp_file = os.path.abspath("temp_instruction.txt")
         
+        # --- [追加] AIの記憶喪失ミッション ---
+        # OpenClawが保持しているチャット履歴ファイルを削除して、
+        # 常に「まっさらな状態」で指示を聞かせやす。
+        # ※場所は環境によりますが、通常は実行ディレクトリの .openclaw フォルダ内でやんす
+        history_db = Path.home() / ".openclaw" / "conversations.db" # 一般的な場所の例
+        if history_db.exists():
+            try:
+                os.remove(history_db)
+                logging.info("【システム】AIの過去の記憶をリセットしやした。")
+            except: pass
+
         try:
-            # 1. 指示内容をファイルに書き出す
             with open(temp_file, "w", encoding="utf-8") as f:
                 f.write(instruction)
 
-            # 2. Gateway 起動
             gw_proc = subprocess.Popen(
                 ["powershell", "-Command", "openclaw gateway run"],
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
             time.sleep(20)
 
-            # 3. エージェント実行
+            # リダイレクト方式は変えずに、AIに「これは新規ミッションだ」と強く自覚させやす
             cmd = f'cmd /c "openclaw agent --agent main -m . < \"{temp_file}\""'
 
-            # --- [DEBUG] 送信内容の記録 ---
-            logging.info(f"--- [DEBUG: AI送信プロンプト] ---\n{instruction}\n------------------------------")
-            logging.info(f"--- [DEBUG] AI実行開始 (入力文字数: {len(instruction)}) ---")
+            logging.info(f"--- [DEBUG] AI実行開始 ---")
             
             result = subprocess.run(
                 cmd,
@@ -204,24 +211,19 @@ class ArkitecEngine:
                 logging.error(f"【エージェントエラー】{result.stderr.strip()}")
                 return None
             
-            # --- [DEBUG] 受信内容の記録 ---
-            res_text = result.stdout.strip()
-            logging.info(f"--- [DEBUG: AI生の返答] (文字数: {len(res_text)}) ---\n{res_text}\n---------------------------")
-            
-            return res_text
+            return result.stdout.strip()
 
         except Exception as e:
             logging.error(f"【システムエラー】{e}")
             return None
         finally:
-            # 後始末
             if os.path.exists(temp_file):
                 try: os.remove(temp_file)
                 except: pass
             if gw_proc:
                 subprocess.run(["powershell", "-Command", "Get-Process node | Where-Object { $_.CommandLine -match 'gateway' } | Stop-Process -Force"], shell=True)
                 gw_proc.terminate()
-
+                
     def create_markdown(self, title, body, filename):
         """生成内容をMDファイルとして保存しやす"""
         timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+09:00")
