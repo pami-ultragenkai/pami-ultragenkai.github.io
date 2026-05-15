@@ -57,26 +57,29 @@ class ArkitecEngine:
         except Exception:
             return {"total_score": 0.0, "stats": {}}
 
-    def summarize_content(self, content):
-        """執筆した記事を100文字以内で要約させやす[cite: 1]"""
+    def summarize_content(self, content, theme, title):
+        """
+        本文(content)は危険なので使いやせん！
+        テーマとタイトルから、SNS告知用の安全な要約を生成しやす。
+        """
+        # 本文を使わず、制御可能な情報だけでプロンプトを構成
         instruction = (
-            f"以下のブログ記事の内容を、エンジニア2年目のぱみちきが振り返る形で、"
-            f"100文字以内で要約してください。\n\n"
-            f"内容: {content[:1000]}"
+            f"あなたはエンジニア2年目の『ぱみちき』です。\n"
+            f"今回、ブログ記事『{title}』を書きました。テーマは「{theme}」です。\n"
+            "この内容をSNSで告知するために、100文字以内で可愛く要約してください。\n"
+            "※『〜について書きました！』という形式で、一生懸命さを出してください。\n"
+            "※挨拶や余計な解説は不要です。"
         )
 
-        # 【デバッグ】要約時に「何を」AIに渡そうとしているか記録
-        logging.info(f"--- [DEBUG: 要約ミッション開始] 入力文字数: {len(content)} ---")
+        logging.info(f"--- [DEBUG: 安全要約ミッション開始] テーマ: {theme} ---")
+        
+        # 既存の安定している実行関数をそのまま利用
+        summary = self.run_openclaw_agent(instruction)
+        
+        if not summary or len(summary) > 200:
+            return f"{theme}について一生懸命書きました！ぜひ読んでほしい件！"
 
-        logging.info(f"--- [DEBUG: 要約元ネタ]  {instruction} ")
-
-        # OpenClawを使用して要約を生成
-        summary = self.run_openclaw_agent(f"【要約ミッション】{instruction}")
-
-        # 【デバッグ】要約として「何が」返ってきたか記録
-        logging.info(f"--- [DEBUG: 要約ミッション結果] --- \n{summary}\n---")
-
-        return summary.strip() if summary else "要約の生成に失敗しやした。"
+        return summary.strip()
 
     def save_history(self, theme, level, summary):
         """報酬と要約を履歴に保存しやす[cite: 1]"""
@@ -245,10 +248,10 @@ class ArkitecEngine:
             return False
 
     def run(self):
-        """メイン実行フロー[cite: 1]"""
+        """メイン実行フロー"""
         history = self.load_history()
         
-        # 1. ミッション決定[cite: 1]
+        # 1. ミッション決定
         theme, level = self.decide_next_mission(history)
         logging.info(f"--- [MISSION START] {theme} ({level}) ---")
 
@@ -256,8 +259,15 @@ class ArkitecEngine:
         content = self.run_openclaw_agent(self.build_instruction(theme, level, history))
         if not content: return
 
-        # 3. 要約生成[cite: 1]
-        summary = self.summarize_content(content)
+        # タイトルを抽出（H1タグから取得する想定）
+        title = "不明なタイトル"
+        for line in content.split('\n'):
+            if line.startswith('# '):
+                title = line.replace('# ', '').strip()
+                break
+
+        # 3. 要約生成（本文 content は渡さず、theme と title を渡す）
+        summary = self.summarize_content(None, theme, title)
 
         # 4. ファイル管理設定
         slug = f"{datetime.now().strftime('%Y-%m-%d')}-{str(uuid.uuid4())[:8]}"
